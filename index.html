@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AVEDOW Audio Mixer</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<header>
+  <div>
+    <h1>AVEDOW</h1>
+    <p>Audio Mixer • EQ • DLMS</p>
+  </div>
+
+  <button id="powerBtn" class="power">● POWER</button>
+</header>
+
+<main>
+
+  <!-- MASTER -->
+  <section class="panel master-panel">
+
+    <div class="section-title">
+      <h2>MASTER</h2>
+      <span id="masterDb">0 dB</span>
+    </div>
+
+    <div class="master-controls">
+
+      <div class="knob-area">
+        <label>MASTER</label>
+        <input
+          id="masterVolume"
+          type="range"
+          min="0"
+          max="1.5"
+          step="0.01"
+          value="1"
+        >
+      </div>
+
+      <div class="meter">
+        <div id="masterMeter"></div>
+      </div>
+
+      <div class="dlms">
+        <h3>DLMS</h3>
+
+        <label>
+          Target
+          <input
+            id="dlmsTarget"
+            type="range"
+            min="-18"
+            max="-3"
+            value="-10"
+          >
+          <span id="dlmsTargetText">-10 dB</span>
+        </label>
+
+        <label class="switch-row">
+          <span>Limiter</span>
+          <input id="limiter" type="checkbox" checked>
+        </label>
+      </div>
+
+    </div>
+
+  </section>
+
+
+  <!-- EQUALIZER -->
+  <section class="panel">
+
+    <div class="section-title">
+      <h2>10 BAND EQUALIZER</h2>
+
+      <select id="preset">
+        <option value="flat">Flat</option>
+        <option value="bass">Bass Boost</option>
+        <option value="vocal">Vocal</option>
+        <option value="dance">Dance</option>
+        <option value="rock">Rock</option>
+        <option value="custom">Custom</option>
+      </select>
+    </div>
+
+    <div id="eq" class="equalizer"></div>
+
+  </section>
+
+
+  <!-- MIXER -->
+  <section class="panel">
+
+    <div class="section-title">
+      <h2>MIXER</h2>
+      <span>4 CHANNEL</span>
+    </div>
+
+    <div id="mixer" class="mixer"></div>
+
+  </section>
+
+
+  <!-- PLAYER -->
+  <section class="panel">
+
+    <div class="section-title">
+      <h2>AUDIO PLAYER</h2>
+    </div>
+
+    <div class="player">
+
+      <input id="fileInput" type="file" accept="audio/*">
+
+      <div class="file-name" id="fileName">
+        Belum ada file
+      </div>
+
+      <div class="transport">
+
+        <button id="playBtn">▶</button>
+        <button id="stopBtn">■</button>
+
+        <input
+          id="seek"
+          type="range"
+          min="0"
+          max="100"
+          value="0"
+        >
+
+        <span id="time">00:00 / 00:00</span>
+
+      </div>
+
+    </div>
+
+  </section>
+
+
+  <!-- YOUTUBE -->
+  <section class="panel">
+
+    <div class="section-title">
+      <h2>YOUTUBE</h2>
+      <span>OFFICIAL PLAYER</span>
+    </div>
+
+    <div class="youtube-input">
+
+      <input
+        id="youtubeUrl"
+        type="text"
+        placeholder="Tempel URL video YouTube"
+      >
+
+      <button id="youtubeBtn">
+        LOAD
+      </button>
+
+    </div>
+
+    <div id="youtubeContainer" class="youtube-container">
+      <p>Video YouTube akan muncul di sini.</p>
+    </div>
+
+  </section>
+
+</main>
+
+<footer>
+  AVEDOW AUDIO SYSTEM • Web Audio Mixer
+</footer>
+
+<script src="app.js"></script>
+
+</body>
+</html>
