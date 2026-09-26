@@ -1,13 +1,9 @@
-/* =========================================================
-   AVEDOW AUDIO MIXER V3
-   REAL 10 BAND EQ AUDIO ENGINE
-========================================================= */
-
 "use strict";
 
-/* =========================================================
-   GLOBAL
-========================================================= */
+// ==========================================
+// AVEDOW AUDIO MIXER - APP.JS
+// Stable EQ + Audio Player + YouTube
+// ==========================================
 
 let audioContext = null;
 let audioElement = null;
@@ -18,15 +14,10 @@ let masterGain = null;
 let limiterNode = null;
 let analyser = null;
 
-let powered = false;
-let currentObjectURL = null;
-let meterStarted = false;
+let audioObjectURL = null;
+let isPowered = false;
 
-
-/* =========================================================
-   FREQUENCIES
-========================================================= */
-
+// 10 BAND EQ
 const frequencies = [
   31,
   62,
@@ -40,47 +31,93 @@ const frequencies = [
   16000
 ];
 
-
-/* =========================================================
-   PRESETS
-========================================================= */
-
 const presets = {
-
-  flat: [
-    0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0
-  ],
+  flat: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 
   bass: [
-    8, 7, 6, 4, 2,
-    0, -1, -2, -2, -2
+    8,
+    7,
+    6,
+    3,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0
   ],
 
   vocal: [
-    -3, -2, -1, 1, 4,
-    5, 4, 2, 0, -1
+    -2,
+    -2,
+    -1,
+    1,
+    4,
+    6,
+    5,
+    3,
+    1,
+    0
   ],
 
   dance: [
-    7, 6, 4, 1, -2,
-    0, 3, 5, 6, 4
+    6,
+    5,
+    3,
+    1,
+    0,
+    1,
+    3,
+    4,
+    5,
+    5
   ],
 
   rock: [
-    6, 5, 3, 0, -2,
-    2, 4, 5, 4, 3
+    5,
+    4,
+    2,
+    -1,
+    -2,
+    1,
+    3,
+    4,
+    5,
+    4
   ]
-
 };
 
 
-/* =========================================================
-   DOM
-========================================================= */
+// ==========================================
+// GET ELEMENTS
+// ==========================================
 
 const powerBtn =
   document.getElementById("powerBtn");
+
+const masterVolume =
+  document.getElementById("masterVolume");
+
+const masterMeter =
+  document.getElementById("masterMeter");
+
+const dlmsTarget =
+  document.getElementById("dlmsTarget");
+
+const dlmsTargetText =
+  document.getElementById("dlmsTargetText");
+
+const limiter =
+  document.getElementById("limiter");
+
+const preset =
+  document.getElementById("preset");
+
+const eqContainer =
+  document.getElementById("eq");
+
+const mixerContainer =
+  document.getElementById("mixer");
 
 const fileInput =
   document.getElementById("fileInput");
@@ -100,119 +137,137 @@ const seek =
 const timeDisplay =
   document.getElementById("time");
 
-const eqContainer =
-  document.getElementById("eq");
+const youtubeUrl =
+  document.getElementById("youtubeUrl");
 
-const presetSelect =
-  document.getElementById("preset");
+const youtubeBtn =
+  document.getElementById("youtubeBtn");
 
-const masterVolume =
-  document.getElementById("masterVolume");
-
-const masterDb =
-  document.getElementById("masterDb");
-
-const masterMeter =
-  document.getElementById("masterMeter");
-
-const dlmsTarget =
-  document.getElementById("dlmsTarget");
-
-const dlmsTargetText =
-  document.getElementById("dlmsTargetText");
-
-const limiterCheckbox =
-  document.getElementById("limiter");
-
-const mixer =
-  document.getElementById("mixer");
+const youtubeContainer =
+  document.getElementById("youtubeContainer");
 
 
-/* =========================================================
-   CREATE AUDIO ELEMENT
-========================================================= */
+// ==========================================
+// CREATE AUDIO ELEMENT
+// ==========================================
 
 audioElement =
   document.createElement("audio");
 
 audioElement.preload = "metadata";
-
 audioElement.crossOrigin = "anonymous";
 
 
-/* =========================================================
-   CREATE EQ UI
-========================================================= */
+// ==========================================
+// FORMAT TIME
+// ==========================================
 
-function createEQUI() {
+function formatTime(seconds) {
 
-  if (!eqContainer) return;
+  if (!Number.isFinite(seconds)) {
+    return "00:00";
+  }
 
-  eqContainer.innerHTML = "";
+  const min =
+    Math.floor(seconds / 60);
 
-  frequencies.forEach(
-    (frequency, index) => {
+  const sec =
+    Math.floor(seconds % 60);
 
-      const band =
-        document.createElement("div");
-
-      band.className = "eq-band";
-
-      const label =
-        frequency >= 1000
-          ? (frequency / 1000) + "k"
-          : frequency;
-
-      band.innerHTML = `
-
-        <div class="eq-frequency">
-          ${label}
-        </div>
-
-        <input
-          class="eq-slider"
-          type="range"
-          min="-12"
-          max="12"
-          step="0.5"
-          value="0"
-          data-index="${index}"
-        >
-
-        <div
-          class="eq-value"
-          id="eqValue${index}"
-        >
-          0 dB
-        </div>
-
-      `;
-
-      eqContainer.appendChild(band);
-
-    }
+  return (
+    String(min).padStart(2, "0") +
+    ":" +
+    String(sec).padStart(2, "0")
   );
-
 }
 
 
-/* =========================================================
-   CREATE AUDIO ENGINE
-========================================================= */
+// ==========================================
+// CREATE EQ UI
+// ==========================================
 
-function initAudio() {
+function createEQ() {
 
-  if (audioContext) {
-
+  if (!eqContainer) {
+    console.error("EQ container tidak ditemukan");
     return;
-
   }
 
+  eqContainer.innerHTML = "";
+
+  frequencies.forEach((freq, index) => {
+
+    const band =
+      document.createElement("div");
+
+    band.className = "eq-band";
+
+    const label =
+      document.createElement("div");
+
+    label.className = "eq-label";
+
+    label.textContent =
+      freq >= 1000
+        ? `${freq / 1000}k`
+        : `${freq}`;
+
+    const slider =
+      document.createElement("input");
+
+    slider.type = "range";
+    slider.min = "-12";
+    slider.max = "12";
+    slider.step = "0.5";
+    slider.value = "0";
+
+    slider.className = "eq-slider";
+
+    slider.dataset.index = index;
+
+    const value =
+      document.createElement("div");
+
+    value.className = "eq-value";
+
+    value.textContent = "0 dB";
+
+    slider.addEventListener(
+      "input",
+      () => {
+
+        const gain =
+          Number(slider.value);
+
+        value.textContent =
+          `${gain > 0 ? "+" : ""}${gain} dB`;
+
+        setEQ(index, gain);
+      }
+    );
+
+    band.appendChild(label);
+    band.appendChild(slider);
+    band.appendChild(value);
+
+    eqContainer.appendChild(band);
+  });
+}
+
+
+// ==========================================
+// CREATE AUDIO ENGINE
+// ==========================================
+
+function createAudioEngine() {
+
+  if (audioContext) {
+    return;
+  }
 
   const AudioContextClass =
     window.AudioContext ||
     window.webkitAudioContext;
-
 
   if (!AudioContextClass) {
 
@@ -221,115 +276,67 @@ function initAudio() {
     );
 
     return;
-
   }
-
 
   audioContext =
     new AudioContextClass();
-
-
-  /* =======================================================
-     SOURCE
-  ======================================================= */
 
   sourceNode =
     audioContext.createMediaElementSource(
       audioElement
     );
 
-
-  /* =======================================================
-     EQ CHAIN
-  ======================================================= */
-
-  let previous =
-    sourceNode;
-
-
   eqFilters = [];
 
+  // SOURCE
+  let currentNode =
+    sourceNode;
 
+  // 10 BAND EQ
   frequencies.forEach(
-    (frequency, index) => {
+    (frequency) => {
 
       const filter =
         audioContext.createBiquadFilter();
 
-
-      if (index === 0) {
-
-        filter.type =
-          "lowshelf";
-
-      }
-      else if (
-        index === frequencies.length - 1
-      ) {
-
-        filter.type =
-          "highshelf";
-
-      }
-      else {
-
-        filter.type =
-          "peaking";
-
-      }
-
+      filter.type =
+        "peaking";
 
       filter.frequency.value =
         frequency;
 
-
       filter.Q.value =
         1.0;
-
 
       filter.gain.value =
         0;
 
+      currentNode.connect(filter);
 
-      previous.connect(
-        filter
-      );
-
-
-      previous =
+      currentNode =
         filter;
 
-
-      eqFilters.push(
-        filter
-      );
-
+      eqFilters.push(filter);
     }
   );
 
-
-  /* =======================================================
-     MASTER
-  ======================================================= */
-
+  // MASTER
   masterGain =
     audioContext.createGain();
 
-
   masterGain.gain.value =
-    Number(masterVolume.value);
+    1;
 
+  currentNode.connect(
+    masterGain
+  );
 
-  /* =======================================================
-     LIMITER
-  ======================================================= */
-
+  // LIMITER
   limiterNode =
     audioContext.createDynamicsCompressor();
 
-
   limiterNode.threshold.value =
-    -3;
+    -1;
 
   limiterNode.knee.value =
     0;
@@ -343,81 +350,58 @@ function initAudio() {
   limiterNode.release.value =
     0.1;
 
-
-  /* =======================================================
-     ANALYSER
-  ======================================================= */
-
-  analyser =
-    audioContext.createAnalyser();
-
-
-  analyser.fftSize =
-    512;
-
-
-  analyser.smoothingTimeConstant =
-    0.65;
-
-
-  /* =======================================================
-     FINAL AUDIO CHAIN
-  ======================================================= */
-
-  previous.connect(
-    masterGain
-  );
-
-
   masterGain.connect(
     limiterNode
   );
 
+  // ANALYSER
+  analyser =
+    audioContext.createAnalyser();
+
+  analyser.fftSize =
+    256;
 
   limiterNode.connect(
     analyser
   );
 
-
   analyser.connect(
     audioContext.destination
   );
 
-
   console.log(
-    "AVEDOW AUDIO ENGINE INITIALIZED"
+    "AVEDOW AUDIO ENGINE READY"
   );
-
-
-  startMeter();
-
 }
 
 
-/* =========================================================
-   RESUME AUDIO CONTEXT
-========================================================= */
+// ==========================================
+// RESUME AUDIO
+// ==========================================
 
 async function resumeAudio() {
 
-  initAudio();
+  if (!audioContext) {
+    createAudioEngine();
+  }
 
+  if (!audioContext) {
+    return;
+  }
 
   if (
-    audioContext &&
-    audioContext.state === "suspended"
+    audioContext.state ===
+    "suspended"
   ) {
 
     await audioContext.resume();
-
   }
-
 }
 
 
-/* =========================================================
-   POWER
-========================================================= */
+// ==========================================
+// POWER
+// ==========================================
 
 if (powerBtn) {
 
@@ -427,96 +411,122 @@ if (powerBtn) {
 
       await resumeAudio();
 
+      isPowered =
+        !isPowered;
 
-      powered =
-        !powered;
+      if (isPowered) {
 
+        powerBtn.classList.add(
+          "active"
+        );
 
-      powerBtn.classList.toggle(
-        "on",
-        powered
-      );
+        powerBtn.textContent =
+          "POWER ON";
 
+      } else {
 
-      if (!powered) {
+        powerBtn.classList.remove(
+          "active"
+        );
 
-        audioElement.pause();
+        powerBtn.textContent =
+          "POWER OFF";
 
+        if (audioElement) {
+          audioElement.pause();
+        }
       }
-
     }
   );
-
 }
 
 
-/* =========================================================
-   FILE INPUT
-========================================================= */
+// ==========================================
+// FILE INPUT
+// ==========================================
 
 if (fileInput) {
 
   fileInput.addEventListener(
     "change",
-    async event => {
+    async (event) => {
 
       const file =
         event.target.files[0];
 
+      if (!file) {
+        return;
+      }
 
-      if (!file) return;
+      const validTypes = [
+        "audio/mpeg",
+        "audio/wav",
+        "audio/x-wav",
+        "audio/wave",
+        "audio/mp4",
+        "audio/ogg"
+      ];
 
+      if (
+        !validTypes.includes(
+          file.type
+        ) &&
+        !file.name.match(
+          /\.(mp3|wav|ogg|m4a)$/i
+        )
+      ) {
+
+        alert(
+          "Pilih file MP3, WAV, OGG, atau M4A."
+        );
+
+        return;
+      }
 
       await resumeAudio();
 
-
-      if (currentObjectURL) {
+      if (audioObjectURL) {
 
         URL.revokeObjectURL(
-          currentObjectURL
+          audioObjectURL
         );
-
       }
 
-
-      currentObjectURL =
-        URL.createObjectURL(
-          file
-        );
-
-
-      audioElement.pause();
-
+      audioObjectURL =
+        URL.createObjectURL(file);
 
       audioElement.src =
-        currentObjectURL;
-
+        audioObjectURL;
 
       audioElement.load();
-
 
       if (fileName) {
 
         fileName.textContent =
           file.name;
-
       }
 
+      if (seek) {
+        seek.value = 0;
+      }
+
+      if (timeDisplay) {
+        timeDisplay.textContent =
+          "00:00 / 00:00";
+      }
 
       console.log(
-        "Loaded audio:",
+        "Audio loaded:",
         file.name
       );
-
     }
   );
-
 }
 
 
-/* =========================================================
-   PLAY
-========================================================= */
+// ==========================================
+// PLAY
+// ==========================================
 
 if (playBtn) {
 
@@ -524,77 +534,44 @@ if (playBtn) {
     "click",
     async () => {
 
-      await resumeAudio();
-
-
       if (!audioElement.src) {
 
         alert(
-          "Pilih file MP3 atau WAV terlebih dahulu."
+          "Masukkan file MP3/WAV terlebih dahulu."
         );
 
         return;
-
       }
 
-
-      if (!powered) {
-
-        powered = true;
-
-        if (powerBtn) {
-
-          powerBtn.classList.add(
-            "on"
-          );
-
-        }
-
-      }
-
+      await resumeAudio();
 
       try {
 
-        if (audioElement.paused) {
+        await audioElement.play();
 
-          await audioElement.play();
+        console.log(
+          "PLAYING"
+        );
 
-          playBtn.textContent =
-            "❚❚";
-
-        }
-        else {
-
-          audioElement.pause();
-
-          playBtn.textContent =
-            "▶";
-
-        }
-
-      }
-      catch (error) {
+      } catch (error) {
 
         console.error(
-          "Playback error:",
+          "Play error:",
           error
         );
 
         alert(
-          "Audio tidak dapat diputar. Coba pilih file MP3/WAV lagi."
+          "Audio tidak bisa diputar. Tekan POWER dulu lalu PLAY."
         );
-
       }
-
     }
   );
-
 }
 
 
-/* =========================================================
-   STOP
-========================================================= */
+// ==========================================
+// STOP
+// ==========================================
 
 if (stopBtn) {
 
@@ -607,121 +584,46 @@ if (stopBtn) {
       audioElement.currentTime =
         0;
 
-
-      if (playBtn) {
-
-        playBtn.textContent =
-          "▶";
-
+      if (seek) {
+        seek.value = 0;
       }
-
     }
   );
-
 }
 
 
-/* =========================================================
-   AUDIO EVENTS
-========================================================= */
-
-audioElement.addEventListener(
-  "play",
-  () => {
-
-    if (playBtn) {
-
-      playBtn.textContent =
-        "❚❚";
-
-    }
-
-  }
-);
-
-
-audioElement.addEventListener(
-  "pause",
-  () => {
-
-    if (playBtn) {
-
-      playBtn.textContent =
-        "▶";
-
-    }
-
-  }
-);
-
-
-audioElement.addEventListener(
-  "ended",
-  () => {
-
-    if (playBtn) {
-
-      playBtn.textContent =
-        "▶";
-
-    }
-
-  }
-);
-
-
-/* =========================================================
-   TIME / SEEK
-========================================================= */
+// ==========================================
+// AUDIO TIME
+// ==========================================
 
 audioElement.addEventListener(
   "timeupdate",
   () => {
 
-    if (
-      !Number.isFinite(
-        audioElement.duration
-      )
-    ) {
+    const current =
+      audioElement.currentTime || 0;
 
-      return;
+    const duration =
+      audioElement.duration || 0;
 
-    }
-
-
-    const percent =
-      (
-        audioElement.currentTime /
-        audioElement.duration
-      ) * 100;
-
-
-    if (seek) {
+    if (seek && duration) {
 
       seek.value =
-        percent;
-
+        (current / duration) * 100;
     }
-
 
     if (timeDisplay) {
 
       timeDisplay.textContent =
-        formatTime(
-          audioElement.currentTime
-        )
-        +
-        " / "
-        +
-        formatTime(
-          audioElement.duration
-        );
-
+        `${formatTime(current)} / ${formatTime(duration)}`;
     }
-
   }
 );
 
+
+// ==========================================
+// SEEK
+// ==========================================
 
 if (seek) {
 
@@ -734,700 +636,436 @@ if (seek) {
           audioElement.duration
         )
       ) {
-
         return;
-
       }
 
+      const percentage =
+        Number(seek.value) / 100;
 
       audioElement.currentTime =
-        (
-          Number(seek.value) /
-          100
-        ) *
-        audioElement.duration;
-
+        audioElement.duration *
+        percentage;
     }
   );
-
 }
 
 
-/* =========================================================
-   TIME FORMAT
-========================================================= */
+// ==========================================
+// SET EQ
+// ==========================================
 
-function formatTime(seconds) {
-
-  if (
-    !Number.isFinite(seconds)
-  ) {
-
-    return "00:00";
-
-  }
-
-
-  const minutes =
-    Math.floor(
-      seconds / 60
-    );
-
-
-  const secs =
-    Math.floor(
-      seconds % 60
-    );
-
-
-  return (
-    String(minutes)
-      .padStart(2, "0")
-    +
-    ":"
-    +
-    String(secs)
-      .padStart(2, "0")
-  );
-
-}
-
-
-/* =========================================================
-   EQ CONTROL
-========================================================= */
-
-function setEQBand(
-  index,
-  value
-) {
+function setEQ(index, gain) {
 
   if (!eqFilters[index]) {
-
     return;
-
   }
 
+  eqFilters[index].gain.value =
+    gain;
 
-  const gain =
-    Number(value);
-
-
-  const now =
-    audioContext.currentTime;
-
-
-  eqFilters[index].gain.cancelScheduledValues(
-    now
+  console.log(
+    `EQ ${frequencies[index]} Hz = ${gain} dB`
   );
-
-
-  eqFilters[index].gain.setTargetAtTime(
-    gain,
-    now,
-    0.01
-  );
-
-
-  const slider =
-    document.querySelector(
-      `.eq-slider[data-index="${index}"]`
-    );
-
-
-  const valueText =
-    document.getElementById(
-      `eqValue${index}`
-    );
-
-
-  if (slider) {
-
-    slider.value =
-      gain;
-
-  }
-
-
-  if (valueText) {
-
-    valueText.textContent =
-      gain + " dB";
-
-  }
-
 }
 
 
-/* =========================================================
-   EQ SLIDERS
-========================================================= */
+// ==========================================
+// PRESET
+// ==========================================
 
-function setupEQControls() {
+if (preset) {
 
-  document
-    .querySelectorAll(".eq-slider")
-    .forEach(
-      slider => {
-
-        slider.addEventListener(
-          "input",
-          async () => {
-
-            await resumeAudio();
-
-
-            const index =
-              Number(
-                slider.dataset.index
-              );
-
-
-            const value =
-              Number(
-                slider.value
-              );
-
-
-            setEQBand(
-              index,
-              value
-            );
-
-
-            if (presetSelect) {
-
-              presetSelect.value =
-                "custom";
-
-            }
-
-          }
-        );
-
-      }
-    );
-
-}
-
-
-/* =========================================================
-   PRESETS
-========================================================= */
-
-if (presetSelect) {
-
-  presetSelect.addEventListener(
+  preset.addEventListener(
     "change",
-    async event => {
+    () => {
+
+      const selected =
+        preset.value;
 
       const values =
-        presets[
-          event.target.value
-        ];
-
+        presets[selected];
 
       if (!values) {
-
         return;
-
       }
 
-
-      await resumeAudio();
-
-
       values.forEach(
-        (value, index) => {
+        (gain, index) => {
 
-          setEQBand(
-            index,
-            value
-          );
+          if (eqFilters[index]) {
 
+            eqFilters[index].gain.value =
+              gain;
+          }
+
+          const slider =
+            eqContainer?.querySelector(
+              `input[data-index="${index}"]`
+            );
+
+          if (slider) {
+            slider.value =
+              gain;
+          }
+
+          const valueElement =
+            slider?.parentElement?.querySelector(
+              ".eq-value"
+            );
+
+          if (valueElement) {
+
+            valueElement.textContent =
+              `${gain > 0 ? "+" : ""}${gain} dB`;
+          }
         }
       );
-
     }
   );
-
 }
 
 
-/* =========================================================
-   MASTER VOLUME
-========================================================= */
+// ==========================================
+// MASTER VOLUME
+// ==========================================
 
 if (masterVolume) {
 
   masterVolume.addEventListener(
     "input",
-    async event => {
-
-      await resumeAudio();
-
+    () => {
 
       const value =
-        Number(
-          event.target.value
-        );
-
+        Number(masterVolume.value);
 
       if (masterGain) {
 
-        masterGain.gain.setTargetAtTime(
-          value,
-          audioContext.currentTime,
-          0.01
-        );
-
+        masterGain.gain.value =
+          value;
       }
-
-
-      const db =
-        value > 0
-          ? 20 * Math.log10(value)
-          : -Infinity;
-
-
-      if (masterDb) {
-
-        masterDb.textContent =
-          Number.isFinite(db)
-            ? db.toFixed(1) + " dB"
-            : "-∞ dB";
-
-      }
-
     }
   );
-
 }
 
 
-/* =========================================================
-   DLMS
-========================================================= */
+// ==========================================
+// DLMS TARGET
+// ==========================================
 
 if (dlmsTarget) {
 
   dlmsTarget.addEventListener(
     "input",
-    event => {
+    () => {
 
       if (dlmsTargetText) {
 
         dlmsTargetText.textContent =
-          event.target.value +
-          " dB";
-
+          `${dlmsTarget.value} dB`;
       }
-
     }
   );
-
 }
 
 
-/* =========================================================
-   LIMITER
-========================================================= */
+// ==========================================
+// LIMITER
+// ==========================================
 
-if (limiterCheckbox) {
+if (limiter) {
 
-  limiterCheckbox.addEventListener(
+  limiter.addEventListener(
     "change",
     () => {
 
       if (!limiterNode) {
-
         return;
-
       }
 
-
-      if (limiterCheckbox.checked) {
+      if (limiter.checked) {
 
         limiterNode.threshold.value =
-          -3;
-
-        limiterNode.knee.value =
-          0;
+          -1;
 
         limiterNode.ratio.value =
           20;
 
-        limiterNode.attack.value =
-          0.003;
-
-        limiterNode.release.value =
-          0.1;
-
-      }
-      else {
+      } else {
 
         limiterNode.threshold.value =
           0;
 
-        limiterNode.knee.value =
-          0;
-
         limiterNode.ratio.value =
           1;
-
       }
-
     }
   );
-
 }
 
 
-/* =========================================================
-   MIXER
-========================================================= */
-
-const channels = [];
-
-
-function createMixer() {
-
-  if (!mixer) return;
-
-
-  mixer.innerHTML = "";
-
-
-  for (
-    let index = 0;
-    index < 4;
-    index++
-  ) {
-
-    channels.push({
-
-      volume: 1,
-      pan: 0,
-      mute: false,
-      solo: false
-
-    });
-
-
-    const channel =
-      document.createElement(
-        "div"
-      );
-
-
-    channel.className =
-      "channel";
-
-
-    channel.innerHTML = `
-
-      <h3>CHANNEL ${index + 1}</h3>
-
-      <div class="channel-meter">
-        <div id="channelMeter${index}"></div>
-      </div>
-
-      <label>VOLUME</label>
-
-      <input
-        id="channelVolume${index}"
-        type="range"
-        min="0"
-        max="1"
-        step="0.01"
-        value="1"
-      >
-
-      <div
-        class="channel-label"
-        id="channelVolumeText${index}"
-      >
-        100%
-      </div>
-
-      <label>PAN</label>
-
-      <input
-        id="channelPan${index}"
-        type="range"
-        min="-1"
-        max="1"
-        step="0.01"
-        value="0"
-      >
-
-      <div
-        class="channel-label"
-        id="channelPanText${index}"
-      >
-        CENTER
-      </div>
-
-      <div class="channel-buttons">
-
-        <button id="mute${index}">
-          MUTE
-        </button>
-
-        <button id="solo${index}">
-          SOLO
-        </button>
-
-      </div>
-
-    `;
-
-
-    mixer.appendChild(
-      channel
-    );
-
-
-    const volume =
-      document.getElementById(
-        `channelVolume${index}`
-      );
-
-
-    const volumeText =
-      document.getElementById(
-        `channelVolumeText${index}`
-      );
-
-
-    const pan =
-      document.getElementById(
-        `channelPan${index}`
-      );
-
-
-    const panText =
-      document.getElementById(
-        `channelPanText${index}`
-      );
-
-
-    const mute =
-      document.getElementById(
-        `mute${index}`
-      );
-
-
-    const solo =
-      document.getElementById(
-        `solo${index}`
-      );
-
-
-    volume.addEventListener(
-      "input",
-      event => {
-
-        channels[index].volume =
-          Number(
-            event.target.value
-          );
-
-
-        volumeText.textContent =
-          Math.round(
-            channels[index].volume * 100
-          ) + "%";
-
-      }
-    );
-
-
-    pan.addEventListener(
-      "input",
-      event => {
-
-        channels[index].pan =
-          Number(
-            event.target.value
-          );
-
-
-        if (
-          channels[index].pan < -0.05
-        ) {
-
-          panText.textContent =
-            "LEFT";
-
-        }
-        else if (
-          channels[index].pan > 0.05
-        ) {
-
-          panText.textContent =
-            "RIGHT";
-
-        }
-        else {
-
-          panText.textContent =
-            "CENTER";
-
-        }
-
-      }
-    );
-
-
-    mute.addEventListener(
-      "click",
-      event => {
-
-        channels[index].mute =
-          !channels[index].mute;
-
-
-        event.target.classList.toggle(
-          "active",
-          channels[index].mute
-        );
-
-      }
-    );
-
-
-    solo.addEventListener(
-      "click",
-      event => {
-
-        channels[index].solo =
-          !channels[index].solo;
-
-
-        event.target.classList.toggle(
-          "active",
-          channels[index].solo
-        );
-
-      }
-    );
-
-  }
-
-}
-
-
-/* =========================================================
-   VU METER
-========================================================= */
-
-function startMeter() {
+// ==========================================
+// VU METER
+// ==========================================
+
+function updateMeter() {
+
+  requestAnimationFrame(
+    updateMeter
+  );
 
   if (
-    meterStarted ||
-    !analyser
+    !analyser ||
+    !masterMeter
   ) {
-
     return;
-
   }
-
-
-  meterStarted =
-    true;
-
 
   const data =
     new Uint8Array(
-      analyser.frequencyBinCount
+      analyser.fftSize
     );
 
+  analyser.getByteTimeDomainData(
+    data
+  );
 
-  function updateMeter() {
+  let sum = 0;
 
-    if (!analyser) {
+  for (
+    let i = 0;
+    i < data.length;
+    i++
+  ) {
 
-      requestAnimationFrame(
-        updateMeter
-      );
+    const value =
+      (data[i] - 128) / 128;
 
-      return;
+    sum +=
+      value * value;
+  }
 
-    }
-
-
-    analyser.getByteTimeDomainData(
-      data
+  const rms =
+    Math.sqrt(
+      sum / data.length
     );
 
+  const level =
+    Math.min(
+      100,
+      rms * 400
+    );
 
-    let sum = 0;
+  masterMeter.style.width =
+    `${level}%`;
+}
 
-
-    for (
-      let i = 0;
-      i < data.length;
-      i++
-    ) {
-
-      const normalized =
-        (
-          data[i] - 128
-        ) / 128;
+updateMeter();
 
 
-      sum +=
-        normalized *
-        normalized;
+// ==========================================
+// SIMPLE MIXER CHANNELS
+// ==========================================
 
+function createMixer() {
+
+  if (!mixerContainer) {
+    return;
+  }
+
+  const channels =
+    mixerContainer.querySelectorAll(
+      ".channel"
+    );
+
+  channels.forEach(
+    (channel, index) => {
+
+      const slider =
+        channel.querySelector(
+          'input[type="range"]'
+        );
+
+      const meter =
+        channel.querySelector(
+          ".meter"
+        );
+
+      if (slider) {
+
+        slider.addEventListener(
+          "input",
+          () => {
+
+            const value =
+              Number(slider.value);
+
+            if (meter) {
+
+              meter.style.height =
+                `${value}%`;
+            }
+          }
+        );
+      }
+    }
+  );
+}
+
+
+// ==========================================
+// YOUTUBE
+// ==========================================
+
+function extractYouTubeID(url) {
+
+  if (!url) {
+    return null;
+  }
+
+  url =
+    url.trim();
+
+  let match =
+    url.match(
+      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&?/]+)/
+    );
+
+  if (match) {
+    return match[1];
+  }
+
+  // Kalau user hanya memasukkan ID video
+  if (
+    /^[a-zA-Z0-9_-]{11}$/.test(url)
+  ) {
+    return url;
+  }
+
+  return null;
+}
+
+
+function loadYouTube() {
+
+  if (
+    !youtubeUrl ||
+    !youtubeContainer
+  ) {
+    return;
+  }
+
+  const url =
+    youtubeUrl.value;
+
+  const videoID =
+    extractYouTubeID(url);
+
+  if (!videoID) {
+
+    alert(
+      "Link YouTube tidak valid.\n\nContoh:\nhttps://www.youtube.com/watch?v=XXXXXXXXXXX"
+    );
+
+    return;
+  }
+
+  youtubeContainer.innerHTML = "";
+
+  const iframe =
+    document.createElement(
+      "iframe"
+    );
+
+  iframe.width = "100%";
+  iframe.height = "315";
+
+  iframe.src =
+    `https://www.youtube.com/embed/${videoID}?rel=0`;
+
+  iframe.title =
+    "YouTube player";
+
+  iframe.frameBorder = "0";
+
+  iframe.allow =
+    "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
+
+  iframe.allowFullscreen =
+    true;
+
+  youtubeContainer.appendChild(
+    iframe
+  );
+
+  console.log(
+    "YouTube loaded:",
+    videoID
+  );
+}
+
+
+if (youtubeBtn) {
+
+  youtubeBtn.addEventListener(
+    "click",
+    loadYouTube
+  );
+}
+
+
+// ==========================================
+// ENTER ON YOUTUBE INPUT
+// ==========================================
+
+if (youtubeUrl) {
+
+  youtubeUrl.addEventListener(
+    "keydown",
+    (event) => {
+
+      if (
+        event.key === "Enter"
+      ) {
+
+        event.preventDefault();
+
+        loadYouTube();
+      }
+    }
+  );
+}
+
+
+// ==========================================
+// CLEANUP
+// ==========================================
+
+window.addEventListener(
+  "beforeunload",
+  () => {
+
+    if (audioObjectURL) {
+
+      URL.revokeObjectURL(
+        audioObjectURL
+      );
     }
 
+    if (audioContext) {
 
-    const rms =
-      Math.sqrt(
-        sum / data.length
-      );
-
-
-    let level =
-      rms * 100 * 3;
-
-
-    level =
-      Math.max(
-        0,
-        Math.min(
-          100,
-          level
-        )
-      );
-
-
-    if (masterMeter) {
-
-      masterMeter.style.width =
-        level + "%";
-
+      audioContext.close();
     }
+  }
+);
 
 
-    channels.forEach(
-      (channel, index) => {
+// ==========================================
+// START
+// ==========================================
 
-        let channelLevel =
-          level *
-          channel.volume;
+createEQ();
+createMixer();
 
-
-        if (channel.mute) {
-
-          channelLevel =
-            0;
-
-        }
-
-
-        const meter =
-          document.getElementById(
-            `channelMeter${
+console.log(
+  "AVEDOW AUDIO MIXER READY"
+);
